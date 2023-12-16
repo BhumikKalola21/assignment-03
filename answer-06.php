@@ -11,32 +11,39 @@ if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
 }
 
-// Create stored procedure to delete records from category_products and product_attributes
-$sqlCreateProcedure = "
-DELIMITER //
-CREATE PROCEDURE DeleteProductWithRelatedData(IN productId INT)
-BEGIN
-    DELETE FROM category_products WHERE product_id = productId;
-    DELETE FROM product_attributes WHERE product_id = productId;
-    DELETE FROM products WHERE id = productId;
-END //
-DELIMITER ;
-";
-
-if ($conn->multi_query($sqlCreateProcedure) === TRUE) {
-    echo "Stored procedure created successfully\n";
+// Drop the trigger if it exists
+$sqlDropTrigger = "DROP TRIGGER IF EXISTS before_delete_product";
+if ($conn->query($sqlDropTrigger) === TRUE) {
+    echo "Trigger dropped successfully\n";
 } else {
-    echo "Error creating stored procedure: " . $conn->error;
+    echo "Error dropping trigger: " . $conn->error;
 }
 
-// Now, let's say you want to delete a product with ID 4 using the stored procedure
-$productToDeleteId = 4;  // Set the desired product ID
-$sqlCallProcedure = "CALL DeleteProductWithRelatedData($productToDeleteId)";
+// Create trigger to delete records from category_products and product_attributes
+$sqlCreateTrigger = "
+CREATE TRIGGER before_delete_product
+BEFORE DELETE ON products
+FOR EACH ROW
+BEGIN
+    DELETE FROM category_products WHERE product_id = OLD.id;
+    DELETE FROM product_attributes WHERE product_id = OLD.id;
+END;
+";
 
-if ($conn->query($sqlCallProcedure) === TRUE) {
+if ($conn->multi_query($sqlCreateTrigger) === TRUE) {
+    echo "Trigger created successfully\n";
+} else {
+    echo "Error creating trigger: " . $conn->error;
+}
+
+// Now, let's say you want to delete a product with ID 2
+$productToDeleteId = 6;  // Set the desired product ID
+$sqlDeleteProduct = "DELETE FROM products WHERE id = $productToDeleteId";
+
+if ($conn->query($sqlDeleteProduct) === TRUE) {
     echo "Product with ID $productToDeleteId deleted successfully\n";
 } else {
-    echo "Error calling stored procedure: " . $conn->error;
+    echo "Error deleting product: " . $conn->error;
 }
 
 $conn->close();
